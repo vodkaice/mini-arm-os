@@ -8,6 +8,7 @@
  * set when that data is transferred to the TDR
  */
 #define USART_FLAG_TXE	((uint16_t) 0x0080)
+#define USART_FLAG_RXE	((uint16_t) 0x0020)
 
 void usart_init(void)
 {
@@ -36,6 +37,15 @@ void print_str(const char *str)
 	}
 }
 
+void print_char(const char *ch)
+{
+        if(*ch){
+	    while (!(*(USART2_SR) & USART_FLAG_TXE));
+	    *(USART2_DR) = (*ch & 0xFF);
+	   
+	}
+
+}
 static void delay(volatile int count)
 {
 	count *= 50000;
@@ -66,6 +76,45 @@ void test3(void *userdata)
 	busy_loop(userdata);
 }
 
+void shell(void *userdata)
+{
+	int i = 0;
+	char str_buff[20];
+	print_str("vodkaice@~$:");
+	while(1){
+	    // USART receive char 
+	    if(*(USART2_SR) & USART_FLAG_RXE){	    
+		str_buff[i] = ( *(USART2_DR) & 0xFF);
+		// end of input (detect \r or \n)
+		if(str_buff[i] == '\r' || str_buff[i] == '\n'){	   
+		    print_char("\n");
+		    
+		}
+		// detect backspace or delete 
+		else if(str_buff[i] == 8 || str_buff[i] == 127){
+		    if(i != 0){
+			print_str("\b \b");
+			i--;
+		    }
+		}
+		// print input on the shell
+		else{	   
+		    if(i < 20){
+			print_char(&str_buff[i++]);
+		    }
+		    else{
+			print_str("\nstring buff overflow!(please key in again)\n");
+			print_str("vodkaice@~$:");
+			i=0;
+		    }
+		}
+	    }
+	    
+	}
+	
+    
+}
+
 /* 72MHz */
 #define CPU_CLOCK_HZ 72000000
 
@@ -74,18 +123,12 @@ void test3(void *userdata)
 
 int main(void)
 {
-	const char *str1 = "Task1", *str2 = "Task2", *str3 = "Task3";
-
+	//const char *str1 = "Task1", *str2 = "Task2", *str3 = "Task3";
+	const char *username = "vodkaice";
 	usart_init();
 
-	if (thread_create(test1, (void *) str1) == -1)
-		print_str("Thread 1 creation failed\r\n");
-
-	if (thread_create(test2, (void *) str2) == -1)
-		print_str("Thread 2 creation failed\r\n");
-
-	if (thread_create(test3, (void *) str3) == -1)
-		print_str("Thread 3 creation failed\r\n");
+	if (thread_create(shell, (void *) username) == -1)
+		print_str("Shell creation failed\r\n");
 
 	/* SysTick configuration */
 	*SYSTICK_LOAD = (CPU_CLOCK_HZ / TICK_RATE_HZ) - 1UL;
